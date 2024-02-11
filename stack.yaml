@@ -1,0 +1,7 @@
+resolver: lts-20.26
+
+ghc-options:
+  $everything: -threaded -O2 -j -split-sections
+
+packages:
+- .
