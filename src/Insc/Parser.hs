@@ -27,10 +27,10 @@ comment = do
 tagIns :: Parser Content
 tagIns = do
   char '<' >> string "ins>" >> space
-  InstRole . T.pack <$> manyTill anySingle (string "</") <* string "ins>"
+  (UserRole,) . T.pack <$> manyTill anySingle (string "</") <* string "ins>"
 
 textElm :: Parser Content
-textElm = OutRole . T.pack <$> manyTill anySingle (lookAhead $ string "<" <|> string "<ins>" <|> unexp)
+textElm = (AssistantRole,) . T.pack <$> manyTill anySingle (lookAhead $ string "<" <|> string "<ins>" <|> unexp)
 
 tagS :: Parser Seq
 tagS = do
@@ -42,4 +42,4 @@ tagS = do
 parseIns :: String -> Text -> Either String [Seq]
 parseIns src x = left errorBundlePretty $ parse p src x where
   p = map pruneSeq <$> p1
-  p1 = space *> manyTill (tagS <* space) eof
+  p1 = space *> many comment *> manyTill (tagS <* space) eof

@@ -28,6 +28,8 @@ dependencies:
 - Glob
 - cmdargs
 - bytestring
+- hex-text
+- cryptohash-md5
 
 default-extensions:
 - FlexibleInstances

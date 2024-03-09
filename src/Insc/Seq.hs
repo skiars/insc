@@ -1,11 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Insc.Seq (
   Seq(..),
-  Content(..),
+  Content,
+  Role(..),
   pruneSeq,
   degradeSeq,
   makeTrainDataset,
-  makeClassifyDataset,
+  makeDataset,
   readChatJson,
   encodeSeq,
   encodeSeqJson
@@ -13,55 +14,54 @@ module Insc.Seq (
 
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Text.Encoding (decodeUtf8)
+import Data.Text.Encoding (encodeUtf8, encodeUtf8Builder)
 import Data.Char (isSpace)
 import Data.List (singleton)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
-import qualified Data.ByteString.Lazy as BS
+import qualified Data.ByteString.Lazy as BSL
+import Crypto.Hash.MD5 (hash)
+import Text.Hex (encodeHex)
+import Data.ByteString.Builder (toLazyByteString)
 
-data Content = SysRole Text
-             | InstRole Text
-             | OutRole Text
-             deriving Show
+data Role = SystemRole | UserRole | AssistantRole
+          deriving (Show, Eq, Enum)
+
+type Content = (Role, Text)
 
 newtype Seq = Seq {
     contents :: [Content]
   } deriving Show
 
-instance FromJSON Content where
-  parseJSON (Object v) = do
-    role <- v .: "role"
-    text <- v .: "text"
-    case role of
-      "system"    -> return $ SysRole text
-      "user"      -> return $ InstRole text
-      "assistant" -> return $ OutRole text
-      _           -> fail $ "unsupported role:" <> role
+instance FromJSON Role where
+  parseJSON (String v) = case v of
+      "system"    -> return SystemRole
+      "user"      -> return UserRole
+      "assistant" -> return AssistantRole
+      _           -> fail $ "unsupported role:" <> T.unpack v
+  parseJSON _ = fail "expected String for role value"
+
+instance {-# OVERLAPS #-} FromJSON Content where
+  parseJSON (Object v) =
+    (,) <$> v .: "role"
+        <*> v .: "content"
   parseJSON _ = fail "expected Object for Content value"
 
 instance FromJSON Seq where
   parseJSON v = Seq <$> parseJSON v
 
-instance ToJSON Content where
-  toJSON msg =
-    let im :: Text -> Text -> Value
-        im role msg = object ["role" .= role, "text" .= msg]
-    in case msg of
-      SysRole a  -> im "system" a
-      InstRole a -> im "user" a
-      OutRole a  -> im "assistant" a
+instance {-# OVERLAPS #-} ToJSON Content where
+  toJSON (role, msg) =
+    object ["role" .= roleName role, "content" .= msg]
 
 instance ToJSON Seq where
   toJSON seq = toJSON $ contents seq
 
 pruneSeq :: Seq -> Seq
 pruneSeq (Seq xs) = Seq $ f <$> firstSys xs where
-  firstSys (OutRole x : xs) = SysRole x : xs
-  firstSys xs = SysRole "" : xs
-  f (SysRole x) = SysRole $ pruneText x
-  f (InstRole x) = InstRole $ pruneText x
-  f (OutRole x) = OutRole $ pruneText x
+  firstSys ((AssistantRole, x) : xs) = (SystemRole, x) : xs
+  firstSys xs = (SystemRole, "") : xs
+  f (role, msg) = (role, pruneText msg)
 
 data PruneState = Space | Newline | Newline2 | OtherChar
                 deriving (Show, Eq)
@@ -84,8 +84,10 @@ pruneText = T.pack . reps OtherChar . T.unpack . T.strip where
 
 mergeContents :: [Content] -> [Content]
 mergeContents [] = []
-mergeContents (InstRole a : InstRole b : xs) = InstRole (a <> b) : mergeContents xs
-mergeContents (OutRole a : OutRole b : xs) = InstRole (a <> b) : mergeContents xs
+mergeContents ((UserRole, a) : (UserRole, b) : xs) =
+  (UserRole, a <> b) : mergeContents xs
+mergeContents ((AssistantRole, a) : (AssistantRole, b) : xs) =
+  (AssistantRole, a <> b) : mergeContents xs
 mergeContents (x : xs) = x : mergeContents xs
 
 -- | Break down multi-turn chat
@@ -93,35 +95,47 @@ degradeSeq :: Seq -> [Seq]
 degradeSeq (Seq ctx) = Seq <$> brk [] (mergeContents ctx) where
   brk r [] = r
   brk r [_] = r
-  brk _ (SysRole a : InstRole b : OutRole c : xs) =
-    brk [[SysRole a, InstRole b, OutRole c]] xs
-  brk r (InstRole a : OutRole b : xs) =
-    brk ((head r <> [InstRole a, OutRole b]) : r) xs
+  brk _ ((SystemRole, a) : (UserRole, b) : (AssistantRole, c) : xs) =
+    brk [[(SystemRole, a), (UserRole, b), (AssistantRole, c)]] xs
+  brk r ((UserRole, a) : (AssistantRole, b) : xs) =
+    brk ((head r <> [(UserRole, a), (AssistantRole, b)]) : r) xs
   brk _ _ = error "unexpected pattern"
 
 -- | make train json dataset
-makeTrainDataset :: FilePath -> [Seq] -> IO ()
-makeTrainDataset outFile seq = do
+makeTrainDataset :: [Seq] -> BSL.ByteString
+makeTrainDataset seq = do
   let f (Seq a) = mconcat (g <$> mergeContents a) <> "<|endoftext|>"
-      g (SysRole a) = im "system" a
-      g (InstRole a) = "\n" <> im "user" a
-      g (OutRole a) = "\n" <> im "assistant" a
+      g a@(SystemRole, _) = im a
+      g a = "\n" <> im a
       ds = object . singleton . ("text" .=) . f <$> seq
-      im role msg = "<|im_start|>" <> role <> "\n" <> msg <> "<|im_end|>"
-  encodeJsonFile outFile ds
+      im (role, msg) = "<|im_start|>" <> roleName role <> "\n" <> msg <> "<|im_end|>"
+  encodeJson ds
 
-makeClassifyDataset :: FilePath -> [(FilePath, [Seq])] -> IO ()
-makeClassifyDataset outFile xs = do
-  let fIns :: (FilePath, [Seq]) -> Value
-      fIns (path, seq) = object ["file" .= path, "session" .= (chat <$> seq)]
-      chat s = object ["chat" .= mergeContents s.contents]
-  encodeJsonFile outFile $ fIns <$> xs
+roleName :: Role -> T.Text
+roleName SystemRole = "system"
+roleName UserRole = "user"
+roleName AssistantRole = "assistant"
 
-encodeJson :: ToJSON a => a -> BS.ByteString
+chatMD5 :: [Content] -> T.Text
+chatMD5 c = encodeHex $ hash $ encodeUtf8 raw where
+  raw = mconcat $ f <$> c
+  f (role, msg) = roleName role <> msg
+
+encodeUtf8Lazy :: T.Text -> BSL.ByteString
+encodeUtf8Lazy = toLazyByteString . encodeUtf8Builder
+
+makeDataset :: [(FilePath, [Seq])] -> BSL.ByteString
+makeDataset xs = do
+  let fIns :: (FilePath, [Seq]) -> [Value]
+      fIns (path, seq) = chat path <$> seq
+      chat file s = object [
+        "file" .= file,
+        "key" .= chatMD5 s.contents,
+        "chat" .= mergeContents s.contents]
+  encodeJson $ xs >>= fIns
+
+encodeJson :: ToJSON a => a -> BSL.ByteString
 encodeJson = (<> "\n") . encodePretty' (defConfig {confIndent = Spaces 2})
-
-encodeJsonFile :: ToJSON a => FilePath -> a -> IO ()
-encodeJsonFile path a = BS.writeFile path $ encodeJson a
 
 readChatJson :: FilePath -> IO Seq
 readChatJson src = do
@@ -130,11 +144,14 @@ readChatJson src = do
     Nothing -> fail $ "load json failed:" <> src
     Just seq -> return seq
 
-encodeSeq :: Seq -> Text
-encodeSeq (Seq seq) = "<s>\n" <> mconcat (f <$> seq) <> "</s>\n" where
-  f (SysRole a) = a <> "\n"
-  f (InstRole a) = "<ins>" <> a <> "</ins>\n"
-  f (OutRole a) = a <> "\n"
+encodeSeq :: Seq -> BSL.ByteString
+encodeSeq (Seq seq) = encodeUtf8Lazy content where
+  content = "<s>\n" <> mconcat (f <$> seq) <> "</s>\n"
+  f (SystemRole, a) = a <> "\n"
+  f (UserRole, a) = "<ins>" <> g a <> "</ins>\n"
+  f (AssistantRole, a) = a <> "\n"
+  g s | length (T.lines s) <= 1 && T.length s <= 80 = s
+      | otherwise = "\n" <> s <> "\n"
 
-encodeSeqJson :: Seq -> Text
-encodeSeqJson = decodeUtf8 . BS.toStrict . encodeJson
+encodeSeqJson :: Seq -> BSL.ByteString
+encodeSeqJson = encodeJson
