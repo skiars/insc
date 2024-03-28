@@ -45,12 +45,14 @@ dumpChat args = do
   case fromJust args.dump of
     "ins" -> do
       chat <- readChatJson args.source
-      return $ encodeSeq chat
+      return $ encodeSeq' chat
     "json" -> do
       chat <- readSeq args.source
       when (null chat) $
         fail $ "chat file is empty: " <> args.source 
-      return $ encodeSeqJson $ head chat
+      return $ case chat of
+        [s] -> encodeSeqJson s
+        xs  -> encodeSeqJson' xs
     x -> error $ "unsupported dump type: " <> x
 
 main :: IO ()
@@ -63,7 +65,7 @@ main = do
     dumpChat args
   else case args.format of
     "default" -> do
-      seq <- globDataset verbose exmatch "dataset"
+      seq <- globDataset verbose exmatch args.source
       return $ makeDataset seq
     "chatml" -> do
       seq <- globDataset verbose exmatch args.source

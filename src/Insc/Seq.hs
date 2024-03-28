@@ -9,20 +9,23 @@ module Insc.Seq (
   makeDataset,
   readChatJson,
   encodeSeq,
-  encodeSeqJson
+  encodeSeq',
+  encodeSeqJson,
+  encodeSeqJson'
 ) where
 
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8, encodeUtf8Builder)
 import Data.Char (isSpace)
-import Data.List (singleton)
+import Data.List (intersperse, singleton)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import qualified Data.ByteString.Lazy as BSL
 import Crypto.Hash.MD5 (hash)
 import Text.Hex (encodeHex)
 import Data.ByteString.Builder (toLazyByteString)
+import qualified Data.Vector as V
 
 data Role = SystemRole | UserRole | AssistantRole
           deriving (Show, Eq, Enum)
@@ -49,6 +52,16 @@ instance {-# OVERLAPS #-} FromJSON Content where
 
 instance FromJSON Seq where
   parseJSON v = Seq <$> parseJSON v
+
+instance {-# OVERLAPS #-} FromJSON [Seq] where
+  parseJSON v@(Array a) = case a' of
+    x:_ -> case x of
+      Array{} -> mapM parseJSON a'
+      _       -> singleton <$> parseJSON v
+    _   -> singleton <$> parseJSON v
+    where
+    a' = V.toList a
+  parseJSON v = singleton <$> parseJSON v
 
 instance {-# OVERLAPS #-} ToJSON Content where
   toJSON (role, msg) =
@@ -137,11 +150,11 @@ makeDataset xs = do
 encodeJson :: ToJSON a => a -> BSL.ByteString
 encodeJson = (<> "\n") . encodePretty' (defConfig {confIndent = Spaces 2})
 
-readChatJson :: FilePath -> IO Seq
+readChatJson :: FilePath -> IO [Seq]
 readChatJson src = do
   json <- decodeFileStrict src
   case json of
-    Nothing -> fail $ "load json failed:" <> src
+    Nothing -> fail $ "load json failed: " <> src
     Just seq -> return seq
 
 encodeSeq :: Seq -> BSL.ByteString
@@ -153,5 +166,11 @@ encodeSeq (Seq seq) = encodeUtf8Lazy content where
   g s | length (T.lines s) <= 1 && T.length s <= 80 = s
       | otherwise = "\n" <> s <> "\n"
 
+encodeSeq' :: [Seq] -> BSL.ByteString
+encodeSeq' = mconcat . intersperse "\n" . (encodeSeq <$>)
+
 encodeSeqJson :: Seq -> BSL.ByteString
 encodeSeqJson = encodeJson
+
+encodeSeqJson' :: [Seq] -> BSL.ByteString
+encodeSeqJson' = encodeJson
