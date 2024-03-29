@@ -25,7 +25,7 @@ globDataset verbose fil srcPath = do
 -- cmdargs
 data ArgOpts = ArgOpts {
   format :: String,
-  exclude :: Maybe String,
+  exclude :: [String],
   dump :: Maybe String,
   source :: FilePath,
   outout :: Maybe FilePath
@@ -34,7 +34,7 @@ data ArgOpts = ArgOpts {
 argopts :: ArgOpts
 argopts = ArgOpts {
   format = "default" &= help "The format of the exported dataset (support 'default' and 'chatml')." &= typ "TYPE",
-  exclude = def &= help "The exclude file pattern." &= typ "PATTERN",
+  exclude = def &= help "The exclude file patterns." &= typ "[PATTERN]",
   dump = def &= help "Dump data to JSON or ins" &= typ "TYPE",
   source = def &= argPos 0 &= typ "PATH",
   outout = def &= help "The output file path." &= typFile
@@ -49,7 +49,7 @@ dumpChat args = do
     "json" -> do
       chat <- readSeq args.source
       when (null chat) $
-        fail $ "chat file is empty: " <> args.source 
+        fail $ "chat file is empty: " <> args.source
       return $ case chat of
         [s] -> encodeSeqJson s
         xs  -> encodeSeqJson' xs
@@ -60,7 +60,7 @@ main = do
   args <- cmdArgs argopts
   let write = maybe BS.putStr BS.writeFile args.outout
       verbose = isJust args.outout
-      exmatch = maybe (const True) ((not .) . match . compile) args.exclude
+      exmatch x = not (any (flip match x . compile) args.exclude)
   content <- if isJust args.dump then do
     dumpChat args
   else case args.format of
