@@ -61,17 +61,20 @@ main = do
   let write = maybe BS.putStr BS.writeFile args.outout
       verbose = isJust args.outout
       exmatch x = not (any (flip match x . compile) args.exclude)
+      collect s = do
+        when verbose $
+          putStrLn $ "collected " <> show (length s) <> " records"
+        return s
+
   content <- if isJust args.dump then do
     dumpChat args
   else case args.format of
     "default" -> do
       seq <- globDataset verbose exmatch args.source
-      return $ makeDataset seq
+      makeDataset <$> collect seq
     "chatml" -> do
       seq <- globDataset verbose exmatch args.source
       let seq' = degradeSeq =<< concatMap snd seq
-      when verbose $
-        putStrLn $ "collected " <> show (length seq') <> " records"
-      return $ makeTrainDataset seq'
+      makeTrainDataset <$> collect seq'
     x -> error $ "unknown export format: " <> x
   write content
