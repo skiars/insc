@@ -1,0 +1,12 @@
+{
+  "instruct": {
+    "prefix": ["<ins>", "ins"],
+    "body": [ "<ins>$0</ins>" ],
+    "description": "instruct tag pair"
+  },
+  "session": {
+    "prefix": ["<s>"],
+    "body": [ "<s>\n$0\n</s>" ],
+    "description": "session tag pair"
+  }
+}

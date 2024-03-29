@@ -1,0 +1,42 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "ins",
+	"patterns": [
+    {
+      "include": "#instruct"
+    },
+		{
+			"include": "#tags"
+		},
+    {
+      "include": "#system"
+    },
+    {
+      "include": "#comment"
+    }
+	],
+	"repository": {
+		"tags": {
+			"patterns": [{
+				"name": "markup.heading.ins",
+				"match": "<s>|</s>|<ins>|</ins>"
+			}]
+		},
+		"instruct": {
+			"name": "string.quoted.double.ins",
+			"begin": "(?<=<ins>)",
+			"end": "(?=</ins>)"
+		},
+    "system": {
+      "name": "markup.italic.ins",
+      "begin": "(?<=<s>)",
+      "end": "(?=<ins>|</s>)"
+    },
+    "comment": {
+      "name": "comment.block.ins",
+      "begin": "<!--",
+      "end": "-->"
+    }
+	},
+	"scopeName": "source.ins"
+}

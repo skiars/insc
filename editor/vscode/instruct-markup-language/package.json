@@ -1,0 +1,37 @@
+{
+  "name": "instruct-markup-language",
+  "displayName": "Instruct Markup Language",
+  "description": "Syntax highlighting for instruct markup language",
+  "version": "0.0.1",
+  "repository": "https://github.com/skiars/insc",
+  "engines": {
+    "vscode": "^1.50.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "ins",
+      "aliases": ["ins", "ins"],
+      "extensions": [".ins"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "ins",
+      "scopeName": "source.ins",
+      "path": "./syntaxes/ins.tmLanguage.json"
+    }],
+    "snippets": [
+      {
+        "language": "ins",
+        "path": "./snippets.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[ins]": {
+        "editor.wordWrap": "on"
+      }
+    }
+  }
+}

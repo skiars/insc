@@ -1,0 +1,22 @@
+{
+    "wordWrap": "on",
+    "comments": {
+        "blockComment": [ "<!--", "-->" ]
+    },
+    // symbols that are auto closed when typing
+    "autoClosingPairs": [
+        ["<s>", "</s>"],
+        ["<ins>", "</ins>"]
+    ],
+    // symbols that can be used to surround a selection
+    "surroundingPairs": [
+        ["<s>", "</s>"],
+        ["<ins>", "</ins>"]
+    ],
+    "folding": {
+      "markers": {
+        "start": "<s>",
+        "end": "</s>"
+      }
+    }
+}
