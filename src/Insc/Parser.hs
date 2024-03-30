@@ -37,7 +37,9 @@ tagRes :: Parser Content
 tagRes = tagged "res" AssistantRole
 
 textElm :: Parser Content
-textElm = (AssistantRole,) . T.pack <$> manyTill anySingle (lookAhead $ newline >> string "<" <|> unexp)
+textElm = (AssistantRole,) . T.pack <$> manyTill anySingle end where
+  end = lookAhead $ try (newline >> char '<' >> tags) <|> unexp
+  tags = string "ins>" <|> string "/s>" <|> string "res>"
 
 tags :: Parser Content
 tags = char '<' *> (tagIns <|> tagRes)
@@ -46,8 +48,8 @@ tagS :: Parser Seq
 tagS = do
   _ <- many comment
   _ <- string "<s>"
-  let content = space *> (tags <|> textElm) <* space
-  Seq <$> manyTill content (string "</s>")
+  let content = space *> (tags <|> textElm)
+  Seq <$> manyTill content (try $ newline >> string "</s>")
 
 parseIns :: String -> Text -> Either String [Seq]
 parseIns src x = left errorBundlePretty $ parse p src x where

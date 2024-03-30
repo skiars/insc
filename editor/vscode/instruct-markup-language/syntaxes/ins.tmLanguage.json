@@ -9,10 +9,10 @@
 			"include": "#tags"
 		},
     {
-      "include": "#system"
+      "include": "#comment"
     },
     {
-      "include": "#comment"
+      "include": "#response"
     }
 	],
 	"repository": {
@@ -27,15 +27,15 @@
 			"begin": "(?<=<ins>)",
 			"end": "(?=</ins>)"
 		},
-    "system": {
-      "name": "markup.italic.ins",
-      "begin": "(?<=<s>)",
-      "end": "(?=<ins>|<res>|</s>)"
-    },
     "comment": {
       "name": "comment.block.ins",
       "begin": "<!--",
       "end": "-->"
+    },
+    "response": {
+      "patterns": [{
+        "include": "text.html.markdown"
+      }]
     }
 	},
 	"scopeName": "source.ins"
