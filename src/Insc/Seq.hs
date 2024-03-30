@@ -21,11 +21,13 @@ import Data.Char (isSpace)
 import Data.List (intersperse, singleton)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import Crypto.Hash.MD5 (hash)
 import Text.Hex (encodeHex)
 import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.Vector as V
+import Data.Maybe (fromMaybe)
 
 data Role = SystemRole | UserRole | AssistantRole
           deriving (Show, Eq, Enum)
@@ -105,13 +107,10 @@ mergeContents (x : xs) = x : mergeContents xs
 
 -- | Break down multi-turn chat
 degradeSeq :: Seq -> [Seq]
-degradeSeq (Seq ctx) = Seq <$> f False [] (mergeContents ctx) where
-  f _ s  []                                            = g True s []
-  f r s  (a@(UserRole, _) : b@(AssistantRole, _) : xs) = g r s $ f True (s <> [a, b]) xs
-  f r s  (x : xs)                                      = f r (s <> [x]) xs
-  g _    [] b = b
-  g False _ b  = b
-  g True  a b  = a : b
+degradeSeq (Seq ctx) = Seq <$> f [] (mergeContents ctx) where
+  f _  []                          = []
+  f s  (a@(AssistantRole, _) : xs) = let s' = s <> [a] in s' : f s' xs
+  f s  (x : xs)                    = f (s <> [x]) xs
 
 -- | make train json dataset
 makeTrainDataset :: [Seq] -> BSL.ByteString
@@ -149,11 +148,11 @@ makeDataset xs = do
 encodeJson :: ToJSON a => a -> BSL.ByteString
 encodeJson = (<> "\n") . encodePretty' (defConfig {confIndent = Spaces 2})
 
-readChatJson :: FilePath -> IO [Seq]
+readChatJson :: Maybe FilePath -> IO [Seq]
 readChatJson src = do
-  json <- decodeFileStrict src
+  json <- maybe (decodeStrict <$> BS.getContents) decodeFileStrict src
   case json of
-    Nothing -> fail $ "load json failed: " <> src
+    Nothing -> fail $ "load json failed: " <> fromMaybe "<stdin>" src
     Just seq -> return seq
 
 encodeSeq :: Seq -> BSL.ByteString
