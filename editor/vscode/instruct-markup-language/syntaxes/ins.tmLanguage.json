@@ -19,7 +19,7 @@
 		"tags": {
 			"patterns": [{
 				"name": "markup.heading.ins",
-				"match": "<s>|</s>|<ins>|</ins>"
+				"match": "<s>|</s>|<ins>|</ins>|<res>|</res>"
 			}]
 		},
 		"instruct": {
@@ -30,7 +30,7 @@
     "system": {
       "name": "markup.italic.ins",
       "begin": "(?<=<s>)",
-      "end": "(?=<ins>|</s>)"
+      "end": "(?=<ins>|<res>|</s>)"
     },
     "comment": {
       "name": "comment.block.ins",

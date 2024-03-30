@@ -24,19 +24,29 @@ comment = do
   _ <- manyTill anySingle (string "-->")
   space
 
+tagged :: Text -> Role -> Parser Content
+tagged tag role = do
+  let tag' = tag <> ">"
+  string tag' >> space
+  (role,) . T.pack <$> manyTill anySingle (string "</") <* string tag'
+
 tagIns :: Parser Content
-tagIns = do
-  char '<' >> string "ins>" >> space
-  (UserRole,) . T.pack <$> manyTill anySingle (string "</") <* string "ins>"
+tagIns = tagged "ins" UserRole
+
+tagRes :: Parser Content
+tagRes = tagged "res" AssistantRole
 
 textElm :: Parser Content
-textElm = (AssistantRole,) . T.pack <$> manyTill anySingle (lookAhead $ string "<" <|> string "<ins>" <|> unexp)
+textElm = (AssistantRole,) . T.pack <$> manyTill anySingle (lookAhead $ newline >> string "<" <|> unexp)
+
+tags :: Parser Content
+tags = char '<' *> (tagIns <|> tagRes)
 
 tagS :: Parser Seq
 tagS = do
   _ <- many comment
   _ <- string "<s>"
-  let content = space *> (tagIns <|> textElm)
+  let content = space *> (tags <|> textElm) <* space
   Seq <$> manyTill content (string "</s>")
 
 parseIns :: String -> Text -> Either String [Seq]

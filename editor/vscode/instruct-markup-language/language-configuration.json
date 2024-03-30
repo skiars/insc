@@ -6,12 +6,14 @@
     // symbols that are auto closed when typing
     "autoClosingPairs": [
         ["<s>", "</s>"],
-        ["<ins>", "</ins>"]
+        ["<ins>", "</ins>"],
+        ["<res>", "</res>"]
     ],
     // symbols that can be used to surround a selection
     "surroundingPairs": [
         ["<s>", "</s>"],
-        ["<ins>", "</ins>"]
+        ["<ins>", "</ins>"],
+        ["<res>", "</res>"]
     ],
     "folding": {
       "markers": {

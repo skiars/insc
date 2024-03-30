@@ -105,14 +105,13 @@ mergeContents (x : xs) = x : mergeContents xs
 
 -- | Break down multi-turn chat
 degradeSeq :: Seq -> [Seq]
-degradeSeq (Seq ctx) = Seq <$> brk [] (mergeContents ctx) where
-  brk r [] = r
-  brk r [_] = r
-  brk _ ((SystemRole, a) : (UserRole, b) : (AssistantRole, c) : xs) =
-    brk [[(SystemRole, a), (UserRole, b), (AssistantRole, c)]] xs
-  brk r ((UserRole, a) : (AssistantRole, b) : xs) =
-    brk ((head r <> [(UserRole, a), (AssistantRole, b)]) : r) xs
-  brk _ _ = error "unexpected pattern"
+degradeSeq (Seq ctx) = Seq <$> f False [] (mergeContents ctx) where
+  f _ s  []                                            = g True s []
+  f r s  (a@(UserRole, _) : b@(AssistantRole, _) : xs) = g r s $ f True (s <> [a, b]) xs
+  f r s  (x : xs)                                      = f r (s <> [x]) xs
+  g _    [] b = b
+  g False _ b  = b
+  g True  a b  = a : b
 
 -- | make train json dataset
 makeTrainDataset :: [Seq] -> BSL.ByteString
@@ -159,10 +158,12 @@ readChatJson src = do
 
 encodeSeq :: Seq -> BSL.ByteString
 encodeSeq (Seq seq) = encodeUtf8Lazy content where
-  content = "<s>\n" <> mconcat (f <$> seq) <> "</s>\n"
-  f (SystemRole, a) = a <> "\n"
-  f (UserRole, a) = "<ins>" <> g a <> "</ins>\n"
-  f (AssistantRole, a) = a <> "\n"
+  content = "<s>\n" <> mconcat (uncurry f <$> zip seq rseq) <> "</s>\n"
+  rseq = SystemRole : (fst <$> seq)
+  f (SystemRole, a) _             = a <> "\n"
+  f (UserRole, a) _               = "<ins>" <> g a <> "</ins>\n"
+  f (AssistantRole, a) SystemRole = "<res>" <> g a <> "</res>\n"
+  f (AssistantRole, a) _          = a <> "\n"
   g s | length (T.lines s) <= 1 && T.length s <= 80 = s
       | otherwise = "\n" <> s <> "\n"
 

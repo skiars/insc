@@ -4,6 +4,11 @@
     "body": [ "<ins>$0</ins>" ],
     "description": "instruct tag pair"
   },
+  "response": {
+    "prefix": ["<res>"],
+    "body": [ "<res>\n$0\n</res>" ],
+    "description": "response tag pair"
+  },
   "session": {
     "prefix": ["<s>"],
     "body": [ "<s>\n$0\n</s>" ],
