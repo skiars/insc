@@ -55,27 +55,31 @@ dumpChat args = do
         xs  -> encodeSeqJson' xs
     x -> error $ "unsupported dump type: " <> x
 
+collect :: Bool -> [(FilePath, [Seq])] -> IO [(FilePath, [Seq])]
+collect verbose s = do
+  let seq = concatMap snd s
+      turns = length $ concatMap (filter f . contents) seq
+      f = (== AssistantRole) . fst
+  when verbose $
+    putStrLn $ "collected " <> show (length seq) <> " records (" <> show turns <> " turns)"
+  return s
+
 main :: IO ()
 main = do
   args <- cmdArgs argopts
   let write = maybe BS.putStr BS.writeFile args.outout
       verbose = isJust args.outout
       exmatch x = not (any (flip match x . compile) args.exclude)
-      collect s = do
-        when verbose $
-          putStrLn $ "collected " <> show (length s) <> " records"
-        return s
+      path = fromMaybe "" args.source
 
-  let path = fromMaybe "" args.source
   content <- if isJust args.dump then do
     dumpChat args
   else case args.format of
     "default" -> do
       seq <- globDataset verbose exmatch $ fromMaybe "" args.source
-      makeDataset <$> collect seq
+      makeDataset <$> collect verbose seq
     "chatml" -> do
       seq <- globDataset verbose exmatch path
-      let seq' = degradeSeq =<< concatMap snd seq
-      makeTrainDataset <$> collect seq'
+      makeChatMLDataset . concatMap snd <$> collect verbose seq
     x -> error $ "unknown export format: " <> x
   write content

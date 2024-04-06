@@ -4,8 +4,7 @@ module Insc.Seq (
   Content,
   Role(..),
   pruneSeq,
-  degradeSeq,
-  makeTrainDataset,
+  makeChatMLDataset,
   makeDataset,
   readChatJson,
   encodeSeq,
@@ -105,16 +104,9 @@ mergeContents ((AssistantRole, a) : (AssistantRole, b) : xs) =
   (AssistantRole, a <> b) : mergeContents xs
 mergeContents (x : xs) = x : mergeContents xs
 
--- | Break down multi-turn chat
-degradeSeq :: Seq -> [Seq]
-degradeSeq (Seq ctx) = Seq <$> f [] (mergeContents ctx) where
-  f _  []                          = []
-  f s  (a@(AssistantRole, _) : xs) = let s' = s <> [a] in s' : f s' xs
-  f s  (x : xs)                    = f (s <> [x]) xs
-
--- | make train json dataset
-makeTrainDataset :: [Seq] -> BSL.ByteString
-makeTrainDataset seq = do
+-- | make ChatML json dataset
+makeChatMLDataset :: [Seq] -> BSL.ByteString
+makeChatMLDataset seq = do
   let f (Seq a) = mconcat (g <$> mergeContents a) <> "<|endoftext|>"
       g a@(SystemRole, _) = im a
       g a = "\n" <> im a
