@@ -107,7 +107,7 @@ mergeContents (x : xs) = x : mergeContents xs
 -- | make ChatML json dataset
 makeChatMLDataset :: [Seq] -> BSL.ByteString
 makeChatMLDataset seq = do
-  let f (Seq a) = mconcat (g <$> mergeContents a) <> "<|endoftext|>"
+  let f (Seq a) = mconcat (g <$> mergeContents a)
       g a@(SystemRole, _) = im a
       g a = "\n" <> im a
       ds = object . singleton . ("text" .=) . f <$> seq
@@ -134,7 +134,7 @@ makeDataset xs = do
       chat file s = object [
         "file" .= file,
         "key" .= chatMD5 s.contents,
-        "chat" .= mergeContents s.contents]
+        "messages" .= mergeContents s.contents]
   encodeJson $ xs >>= fIns
 
 encodeJson :: ToJSON a => a -> BSL.ByteString
