@@ -8,6 +8,7 @@ import Control.Monad (when)
 import qualified Data.ByteString.Lazy as BS
 import System.FilePath.Glob
 import System.Console.CmdArgs
+import Control.Concurrent.ParallelIO (parallel)
 
 import Insc
 
@@ -20,7 +21,7 @@ globDataset verbose fil srcPath = do
           putStrLn $ "load dataset " <> path <> " with " <> show (length xs) <> " records"
         return (path, xs)
   files <- sort . filter fil <$> globDir1 "**/*.ins" srcPath
-  mapM f files
+  parallel $ f <$> files
 
 -- cmdargs
 data ArgOpts = ArgOpts {
