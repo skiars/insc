@@ -71,6 +71,9 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - insc
+    - containers
+    - filepath
+    - natural-sort
 
 tests:
   insc-test:
