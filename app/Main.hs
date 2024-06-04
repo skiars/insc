@@ -34,7 +34,7 @@ isReport args = isJust args.outout && args.report
 globDataset :: ArgOpts -> (FilePath -> Bool) -> FilePath -> IO [(FilePath, [Seq])]
 globDataset args fil srcPath = do
   let f path = do
-        xs <- readSeq path
+        xs <- map pruneSeq <$> readSeq path
         when (isVorbose args) $
           putStrLn $ "load dataset " <> path <> " with " <> show (length xs) <> " records"
         return (path, xs)
@@ -58,7 +58,7 @@ dumpChat args = do
       chat <- readChatJson args.source
       return $ encodeSeq' chat
     "json" -> do
-      chat <- readSeq' args.source
+      chat <- map pruneSeq <$> readSeq' args.source
       when (null chat) $
         fail $ "chat file is empty: " <> fromMaybe "<stdin>" args.source
       return $ case chat of

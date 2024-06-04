@@ -4,6 +4,7 @@ module Insc.Seq (
   Content,
   Role(..),
   pruneSeq,
+  stripSeq,
   makeChatMLDataset,
   makeDataset,
   readChatJson,
@@ -27,6 +28,7 @@ import Text.Hex (encodeHex)
 import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.Vector as V
 import Data.Maybe (fromMaybe)
+import Data.Bifunctor
 
 data Role = SystemRole | UserRole | AssistantRole
           deriving (Show, Eq, Enum)
@@ -72,19 +74,26 @@ instance ToJSON Seq where
   toJSON seq = toJSON $ contents seq
 
 pruneSeq :: Seq -> Seq
-pruneSeq (Seq xs) = Seq $ f <$> firstSys xs where
-  firstSys ((AssistantRole, x) : xs) = (SystemRole, x) : xs
-  firstSys xs = (SystemRole, "") : xs
-  f (role, msg) = (role, pruneText msg)
+pruneSeq = mapSeq pruneText
+
+stripSeq :: Seq -> Seq
+stripSeq = mapSeq T.strip
 
 data PruneState = Space | Newline | Newline2 | OtherChar
                 deriving (Show, Eq)
+
+mapSeq :: (Text -> Text) -> Seq -> Seq
+mapSeq f (Seq xs) = Seq $ second f <$> firstSys xs where
+  firstSys ((AssistantRole, x) : xs) = (SystemRole, x) : xs
+  firstSys xs = (SystemRole, "") : xs
 
 -- | Remove repeated spaces and newlines from text.
 pruneText :: Text -> Text
 pruneText = T.pack . reps OtherChar . T.unpack . T.strip where
   reps :: PruneState -> String -> String
   reps _ [] = []
+  reps s ('`':'`':'`':xs) = let (c, xs') = code xs
+                            in  "```" <> c <> reps s xs'
   reps s (x:xs)
     | x == '\n'      = reps (selNl Newline2 Newline s) xs
     | isSpace x      = reps (selNl s Space s) xs
@@ -95,6 +104,9 @@ pruneText = T.pack . reps OtherChar . T.unpack . T.strip where
   p Newline   = "\n"
   p Newline2  = "\n\n"
   p OtherChar = ""
+  code ""               = ("", "")
+  code ('`':'`':'`':xs) = ("```", xs)
+  code (x:xs)           = first (x:) $ code xs
 
 mergeContents :: [Content] -> [Content]
 mergeContents [] = []
