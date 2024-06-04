@@ -26,9 +26,10 @@ comment = do
 
 tagged :: Text -> Role -> Parser Content
 tagged tag role = do
-  let tag' = tag <> ">"
-  string tag' >> space
-  (role,) . T.pack <$> manyTill anySingle (string "</") <* string tag'
+  let openTag = "<" <> tag <> ">"
+      closeTag = "</" <> tag <> ">"
+  string openTag >> space
+  (role,) . T.pack <$> manyTill anySingle (string closeTag)
 
 tagIns :: Parser Content
 tagIns = tagged "ins" UserRole
@@ -38,11 +39,11 @@ tagRes = tagged "res" AssistantRole
 
 textElm :: Parser Content
 textElm = (AssistantRole,) . T.pack <$> manyTill anySingle end where
-  end = lookAhead $ try (newline >> char '<' >> tags) <|> unexp
-  tags = string "ins>" <|> string "/s>" <|> string "res>"
+  end = lookAhead $ try (newline >> tags) <|> unexp
+  tags = string "<ins>" <|> string "</s>" <|> string "<res>"
 
 tags :: Parser Content
-tags = char '<' *> (tagIns <|> tagRes)
+tags = tagIns <|> tagRes
 
 tagS :: Parser Seq
 tagS = do
